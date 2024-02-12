@@ -1,19 +1,20 @@
 import './App.css';
 import { Button, ChatList, Input, Message } from '@/components';
 import { useState, useRef, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import PocketBase from 'pocketbase';
+const URL = import.meta.env.VITE_PB_URL;
+const pb = new PocketBase(URL);
 
 /* -------------------------------------------------------------------------- */
 /*                                 DB메세지 불러오기                                 */
 /* -------------------------------------------------------------------------- */
-const { data: chatDATA, error } = await supabase.from('chatting').select('*');
+// const { data: chatDATA, error } = await supabase.from('chatting').select('*');
+const chattingRoom = await pb
+  .collection('chattingRoom')
+  .getFullList({ sort: 'created' });
 
 // 1. 최초 상태는 DB DATA
-const INITIALCHAT = chatDATA;
+const INITIALCHAT = chattingRoom;
 
 function App() {
   const [chat, setChat] = useState([...INITIALCHAT]);
@@ -23,31 +24,30 @@ function App() {
     e.preventDefault();
 
     const chatData = new FormData(e.target);
-    const message = chatData.get('message');
+    const messageData = {
+      message: chatData.get('message'),
+      user: '1bgftjtml8aw9g1',
+    };
 
-    if (message === '') {
+    if (messageData.message === '') {
       console.log('빈문자를 입력했습니다.');
       return;
     }
 
     // 2. submit 내용 DB 업로드
-    await supabase.from('chatting').insert([{ message }]);
+    await pb.collection('chattingRoom').create(messageData);
 
     // 3. 상태 업로드 : 실시간 DB를 받아와야함
 
-    supabase
-      .channel('chatting')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'chatting' },
-        (payload) => {
-          console.log('Change received!', payload);
-
-          setChat([...chat, payload.new]);
-          setChat(chatDATA);
-        }
-      )
-      .subscribe();
+    pb.collection('chattingRoom').subscribe(
+      '*',
+      function (e) {
+        setChat([...chat, e.record]);
+      },
+      {
+        /* other options like expand, custom headers, etc. */
+      }
+    );
 
     // submit 후 인풋창 초기화
     refInput.current.value = null;
@@ -58,7 +58,7 @@ function App() {
       <ChatList>
         {chat.map((item) => {
           return (
-            <Message user={item.user} time={item.created_at} key={item.id}>
+            <Message user={item.user} time={item.created} key={item.id}>
               {item.message}
             </Message>
           );
