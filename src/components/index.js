@@ -1,3 +1,4 @@
+export { default as MainCover } from './MainCover/MainCover';
 export { default as ChatList } from './ChatList/ChatList';
 export { default as NowTime } from './NowTime/NowTime';
 export { default as Message } from './Message/Message';
